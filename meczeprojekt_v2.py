@@ -36,7 +36,7 @@ def api_get(path, **params):
     try:
         data = resp.json()
     except ValueError:
-        raise HTTPException(502, f"API nie zwrocilo JSSON-a (HTTP {resp.status_code})")
+        raise HTTPException(502, f"API nie zwrocilo JSON-a (HTTP {resp.status_code})")
 
     if resp.status_code != 200 or "errorCode" in data:
         raise HTTPException(502, data.get("message") or f"Blad API (HTTP {resp.status_code})")
@@ -112,7 +112,7 @@ def matches(team: int, limit: int=Query(10, ge=1, le=100)):
      data = api_get(
           f"/teams/{team}/matches",
           status="FINISHED",
-          dateFrom=str(today - timedelta(WINDOW_DAYS)),
+          dateFrom=str(today - timedelta(days=WINDOW_DAYS)),
           dateTo=str(today),
      )
 
