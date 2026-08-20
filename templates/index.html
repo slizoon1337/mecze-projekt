@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ team }} — ostatnie mecze</title>
+  <style>
+    :root { --bg:#fff; --fg:#111; --muted:#666; --line:#e5e5e5; --card:#fafafa; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#14161a; --fg:#e8e8e8; --muted:#999; --line:#2a2e35; --card:#1b1e24; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin:0; padding:2rem 1rem; background:var(--bg); color:var(--fg);
+      font:16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    main { max-width:900px; margin:0 auto; }
+    h1 { font-size:1.6rem; margin:0 0 .25rem; }
+    .sub { color:var(--muted); font-size:.85rem; margin-bottom:1.5rem; }
+    .wrap { overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
+    table { width:100%; border-collapse:collapse; font-size:.92rem; }
+    th, td { padding:.7rem .9rem; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th { background:var(--card); font-weight:600; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    tr:last-child td { border-bottom:none; }
+    .score { font-variant-numeric:tabular-nums; font-weight:600; }
+    .badge {
+      display:inline-block; width:1.5rem; text-align:center; border-radius:4px;
+      font-weight:700; font-size:.78rem; padding:.15rem 0; color:#fff;
+    }
+    .W { background:#1a7f37; } .D { background:#8a6d00; } .L { background:#b62324; }
+    .muted { color:var(--muted); font-size:.85rem; }
+    .team { display:flex; align-items:center; gap:.5rem }
+    .team img { width:20px; height:20px; object-fit:contain; flex-shrink:0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>{{ team }} — ostatnie mecze</h1>
+  <p class="sub">Wygenerowano: {{ generated }} · dane: football-data.org</p>
+ 
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>Gospodarz</th><th>Wynik</th><th>Gość</th>
+          <th>Rozgrywki</th><th>Sędzia</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+         <tr>
+          <td class="muted">{{ r.date }}</td>
+          <td>
+            <span class="team">
+              {% if r.home_crest %}<img src="{{ r.home_crest }}" alt="" loading="lazy">{% endif %}
+              {{ r.home }}
+            </span>
+          </td>
+          <td class="score">{{ r.score }}</td>
+          <td>
+            <span class="team">
+              {% if r.away_crest %}<img src="{{ r.away_crest }}" alt="" loading="lazy">{% endif %}
+              {{ r.away }}
+            </span>
+          </td>
+          <td class="muted">{{ r.competition }}</td>
+          <td class="muted">{{ r.referee }}</td>
+          <td><span class="badge {{ r.result }}">{{ r.result }}</span></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="muted">Brak meczów w wybranym zakresie.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>

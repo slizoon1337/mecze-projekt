@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ostatnie mecze</title>
+  <style>
+    :root { --bg:#fff; --fg:#111; --muted:#666; --line:#e5e5e5; --card:#fafafa; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#14161a; --fg:#e8e8e8; --muted:#999; --line:#2a2e35; --card:#1b1e24; }
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:2rem 1rem; background:var(--bg); color:var(--fg);
+           font:16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+    main { max-width:960px; margin:0 auto; }
+    h1 { font-size:1.6rem; margin:0 0 1.25rem; }
+    .filters { display:flex; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
+    select { font:inherit; padding:.5rem .7rem; min-width:200px; flex:1 1 200px;
+             background:var(--card); color:var(--fg);
+             border:1px solid var(--line); border-radius:6px; }
+    select:disabled { opacity:.5; }
+    #status { min-height:1.5rem; font-size:.85rem; color:var(--muted); margin-bottom:1rem; }
+    #status.error { color:#b62324; }
+    .wrap { overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
+    table { width:100%; border-collapse:collapse; font-size:.92rem; }
+    th, td { padding:.7rem .9rem; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th { background:var(--card); font-weight:600; font-size:.78rem;
+         text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    tr:last-child td { border-bottom:none; }
+    .score { font-variant-numeric:tabular-nums; font-weight:600; }
+    .team { display:flex; align-items:center; gap:.5rem; }
+    .team img { width:20px; height:20px; object-fit:contain; flex-shrink:0; }
+    .badge { display:inline-block; width:1.5rem; text-align:center; border-radius:4px;
+             font-weight:700; font-size:.78rem; padding:.15rem 0; color:#fff; }
+    .W { background:#1a7f37; } .D { background:#8a6d00; } .L { background:#b62324; }
+    .muted { color:var(--muted); font-size:.85rem; }
+    label { display:flex; align-items:center; gap:.4rem; font-size:.85rem; color:var(--muted); }
+    #limit { min-width:auto; flex:0 0 auto; }
+
+  </style>
+</head>
+<body>
+<main>
+  <h1>Ostatnie mecze</h1>
+ 
+  <div class="filters">
+    <select id="area" aria-label="Kraj"></select>
+    <select id="comp" aria-label="Rozgrywki" disabled></select>
+    <select id="team" aria-label="Druzyna" disabled></select>
+    <label>Liczba meczow
+      <select id="limit">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+      </select>
+    </label>
+
+  </div>
+ 
+  <div id="status"></div>
+ 
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Gospodarz</th><th>Wynik</th><th>Gosc</th>
+            <th>Rozgrywki</th><th>Sedzia</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+ 
+<script>
+const $ = id => document.getElementById(id);
+const areaSel = $("area"), compSel = $("comp"), teamSel = $("team");
+const tbody = $("rows"), statusBox = $("status");
+const limitSel = $("limit");
+const WINDOW_DAYS = 740;
+ 
+function setStatus(msg, isError = false) {
+  statusBox.textContent = msg;
+  statusBox.classList.toggle("error", isError);
+}
+ 
+async function api(path) {
+  const r = await fetch(path);
+  const data = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+  return data;
+}
+ 
+function fill(sel, items, placeholder) {
+  sel.replaceChildren();
+  const first = document.createElement("option");
+  first.value = "";
+  first.textContent = placeholder;
+  sel.append(first);
+  for (const it of items) {
+    const o = document.createElement("option");
+    o.value = it.value;
+    o.textContent = it.label;
+    sel.append(o);
+  }
+  sel.disabled = items.length === 0;
+}
+ 
+function reset(sel, placeholder) {
+  fill(sel, [], placeholder);
+  sel.disabled = true;
+}
+ 
+function cell(text, cls) {
+  const td = document.createElement("td");
+  td.textContent = text;
+  if (cls) td.className = cls;
+  return td;
+}
+ 
+function teamCell(name, crest) {
+  const td = document.createElement("td");
+  const span = document.createElement("span");
+  span.className = "team";
+  if (crest) {
+    const img = document.createElement("img");
+    img.src = crest; img.alt = ""; img.loading = "lazy";
+    span.append(img);
+  }
+  span.append(document.createTextNode(name));
+  td.append(span);
+  return td;
+}
+ 
+function drawRows(rows) {
+  tbody.replaceChildren();
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = cell("Brak zakonczonych meczow.", "muted");
+    td.colSpan = 7;
+    tr.append(td);
+    tbody.append(tr);
+    return;
+  }
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    tr.append(cell(r.date, "muted"));
+    tr.append(teamCell(r.home, r.home_crest));
+    tr.append(cell(r.score, "score"));
+    tr.append(teamCell(r.away, r.away_crest));
+    tr.append(cell(r.competition, "muted"));
+    tr.append(cell(r.referee, "muted"));
+ 
+    const td = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = "badge " + r.result;
+    badge.textContent = r.result;
+    td.append(badge);
+    tr.append(td);
+    tbody.append(tr);
+  }
+}
+ 
+areaSel.addEventListener("change", async () => {
+  reset(compSel, "— rozgrywki —");
+  reset(teamSel, "— druzyna —");
+  tbody.replaceChildren();
+  if (!areaSel.value) return setStatus("");
+ 
+  setStatus("Wczytuje rozgrywki…");
+  try {
+    const comps = await api(`/api/competitions?area=${encodeURIComponent(areaSel.value)}`);
+    fill(compSel, comps.map(c => ({ value: c.code, label: c.name })), "— rozgrywki —");
+    setStatus(comps.length ? "" : "Brak rozgrywek dostepnych w tym planie.");
+  } catch (e) { setStatus(e.message, true); }
+});
+ 
+compSel.addEventListener("change", async () => {
+  reset(teamSel, "— druzyna —");
+  tbody.replaceChildren();
+  if (!compSel.value) return setStatus("");
+ 
+  setStatus("Wczytuje druzyny…");
+  try {
+    const teams = await api(`/api/teams?competition=${encodeURIComponent(compSel.value)}`);
+    fill(teamSel, teams.map(t => ({ value: t.id, label: t.name })), "— druzyna —");
+    setStatus("");
+  } catch (e) { setStatus(e.message, true); }
+});
+ 
+async function loadMatches() {
+  tbody.replaceChildren();
+  if (!teamSel.value) return setStatus("");
+ 
+  const want = Number(limitSel.value);
+  setStatus("Wczytuje mecze…");
+ 
+  try {
+    const rows = await api(`/api/matches?team=${teamSel.value}&limit=${want}`);
+    drawRows(rows);
+ 
+    if (!rows.length) {
+      setStatus(`Brak zakonczonych meczow w ostatnich ${WINDOW_DAYS} dniach.`);
+    } else if (rows.length < want) {
+      setStatus(
+        `Pokazano ${rows.length} z ${want} — w ostatnich ${WINDOW_DAYS} dniach ` +
+        `nie ma wiecej zakonczonych meczow tej druzyny.`
+      );
+    } else {
+      setStatus("");
+    }
+  } catch (e) {
+    setStatus(e.message, true);
+  }
+}
+ 
+teamSel.addEventListener("change", loadMatches);
+limitSel.addEventListener("change", loadMatches);
+ 
+(async () => {
+  setStatus("Wczytuje kraje…");
+  reset(compSel, "— rozgrywki —");
+  reset(teamSel, "— druzyna —");
+  try {
+    const areas = await api("/api/areas");
+    fill(areaSel, areas.map(a => ({ value: a, label: a })), "— kraj —");
+    setStatus("");
+  } catch (e) { setStatus(e.message, true); }
+})();
+</script>
+</body>
+</html>
