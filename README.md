@@ -3,7 +3,7 @@
 Dwa sposoby na to samo: przeglądanie ostatnich wyników drużyny.
 Wspólny token, wspólne środowisko, osobne punkty wejścia.
  
-| | `meczeprojekt.py` | `meczeprojekt_v2.py` |
+| | `meczeprojekt_v1.1.py` | `meczeprojekt_v2.py` |
 |---|---|---|
 | Sposób użycia | terminal, flagi CLI | przeglądarka, listy do wyboru |
 | Wynik | statyczny plik `index.html` | dane pobierane na żądanie |
@@ -53,7 +53,7 @@ Pobiera mecze jednej drużyny i zapisuje gotowy `index.html`: data, drużyny z h
 wynik, rozgrywki, sędzia główny, oznaczenie W/D/L.
  
 ```bash
-python meczeprojekt.py
+python meczeprojekt_v1.1.py
 ```
  
 Plik powstaje w katalogu projektu — otwierasz go dwuklikiem albo publikujesz na Pages.
@@ -61,9 +61,9 @@ Plik powstaje w katalogu projektu — otwierasz go dwuklikiem albo publikujesz n
 ## Wybór drużyny
  
 ```bash
-python meczeprojekt.py --team-id 64                     # Liverpool
-python meczeprojekt.py --team-id 57 --limit 5           # Arsenal, 5 meczów
-python meczeprojekt.py --team-id 65 --output city.html  # do osobnego pliku
+python meczeprojekt_v1.1.py --team-id 64                     # Liverpool
+python meczeprojekt_v1.1.py --team-id 57 --limit 5           # Arsenal, 5 meczów
+python meczeprojekt_v1.1.py --team-id 65 --output city.html  # do osobnego pliku
 ```
  
 ## Podpowiedzi identyfikatorów
@@ -71,9 +71,9 @@ python meczeprojekt.py --team-id 65 --output city.html  # do osobnego pliku
 Nie trzeba pamiętać kodów ani ID — program je wypisze:
  
 ```bash
-python meczeprojekt.py --list-competitions       # kody rozgrywek
-python meczeprojekt.py --list-teams PL           # drużyny wybranej ligi
-python meczeprojekt.py --list-teams PL,PD,BL1    # kilka lig naraz
+python meczeprojekt_v1.1.py --list-competitions       # kody rozgrywek
+python meczeprojekt_v1.1.py --list-teams PL           # drużyny wybranej ligi
+python meczeprojekt_v1.1.py --list-teams PL,PD,BL1    # kilka lig naraz
 ```
  
 ```
@@ -96,13 +96,13 @@ python meczeprojekt.py --list-teams PL,PD,BL1    # kilka lig naraz
 | `--list-teams KODY` | — | wypisz drużyny lig (po przecinku) i zakończ |
 | `--list-competitions` | — | wypisz dostępne rozgrywki i zakończ |
  
-Pełna ściąga: `python meczeprojekt.py --help`
+Pełna ściąga: `python meczeprojekt_v1.1.py --help`
  
 Przy turniejach reprezentacji domyślny zakres dat trzeba poszerzyć — obejmuje sezon klubowy:
  
 ```bash
-python meczeprojekt.py --list-teams WC
-python meczeprojekt.py --team-id 759 --season-from 2026-06-01 --season-to 2026-07-31
+python meczeprojekt_v1.1.py --list-teams WC
+python meczeprojekt_v1.1.py --team-id 759 --season-from 2026-06-01 --season-to 2026-07-31
 ```
 ---
  
@@ -155,7 +155,7 @@ meczeprojekt/
 ├── .gitignore
 ├── README.md
 ├── requirements.txt
-├── meczeprojekt.py         # v1 — generator statyczny
+├── meczeprojektv_1.1.py         # v1 — generator statyczny
 ├── meczeprojekt_v2.py      # v2 — serwer FastAPI
 ├── templates/
 │   ├── index.html          # szablon Jinja2 dla v1
