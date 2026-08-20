@@ -11,7 +11,7 @@ Wspólny token, wspólne środowisko, osobne punkty wejścia.
 | Wymaga serwera | nie | tak (`uvicorn`) |
 | GitHub Pages | tak | nie |
  
-**[Podgląd wersji statycznej](https://TWOJ_LOGIN.github.io/meczeprojekt/)**
+**[Podgląd wersji statycznej](https://slizoon1337.github.io/meczeprojekt/)**
  
 ## Wymagania
  
@@ -21,7 +21,7 @@ Wspólny token, wspólne środowisko, osobne punkty wejścia.
 ## Instalacja
  
 ```bash
-git clone git@github.com:TWOJ_LOGIN/meczeprojekt.git
+git clone git@github.com:slizoon1337/meczeprojekt.git
 cd meczeprojekt
  
 python3 -m venv .venv
