@@ -11,8 +11,6 @@ Wspólny token, wspólne środowisko, osobne punkty wejścia.
 | Wymaga serwera | nie | tak (`uvicorn`) |
 | GitHub Pages | tak | nie |
  
-**[Podgląd wersji statycznej](https://slizoon1337.github.io/meczeprojekt/)**
- 
 ## Wymagania
  
 - Python 3.9+
@@ -174,4 +172,4 @@ meczeprojekt/
  
 [football-data.org](https://www.football-data.org/)
  
- 
+
