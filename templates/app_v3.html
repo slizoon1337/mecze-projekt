@@ -44,12 +44,20 @@
     .ev-min { min-width:3.2rem; color:var(--muted); font-variant-numeric:tabular-nums; }
     .ev-ico { min-width:1.6rem; }
     .ev-note { color:var(--muted); font-size:.82rem; }
+    .shortcuts { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
+    .shortcuts button { font:inherit; font-size:.85rem; padding:.35rem .7rem;
+      background:var(--card); color:var(--fg); border:1px solid var(--line);
+      border-radius:999px; cursor:pointer; }
+    .shortcuts button:hover { background:var(--hover); }
+    .shortcuts button.clear { margin-left:auto; color:var(--muted); }
   </style>
 </head>
 <body>
 <main>
   <h1>Ostatnie mecze</h1>
   <p class="quota" id="quota"></p>
+
+  <div class="shortcuts" id="shortcuts"></div>
  
   <div class="filters">
     <select id="country" class="grow" aria-label="Kraj"></select>
@@ -87,7 +95,20 @@ const countrySel = $("country"), leagueSel = $("league"),
       limitSel   = $("limit");
 const tbody = $("rows"), statusBox = $("status"), quotaBox = $("quota");
  
-let leagues = [];          // pelne dane lig, zeby znac liste sezonow
+const STORAGE_KEY = "mecze-v3";
+const MAX_SEASON = 2024;
+let leagues = [];
+ 
+// Sprawdz id w /api/leagues?country=... zanim dodasz wlasne skroty.
+const PRESETS = [
+  { label: "Premier League", country: "England", league: 39 },
+  { label: "La Liga",        country: "Spain",   league: 140 },
+  { label: "Bundesliga",     country: "Germany", league: 78 },
+  { label: "Serie A",        country: "Italy",   league: 135 },
+  { label: "Ligue 1",        country: "France",  league: 61 },
+  { label: "Ekstraklasa",    country: "Poland",  league: 106 },
+  { label: "Liga Mistrzow",  country: "World",   league: 2 },
+];
  
 function setStatus(msg, isError = false) {
   statusBox.textContent = msg;
@@ -135,6 +156,210 @@ function reset(sel, placeholder) {
   fill(sel, [], placeholder);
   sel.disabled = true;
 }
+ 
+// ---------------- zapamietywanie wyboru ----------------
+ 
+function saveState() {
+  const state = {
+    country: countrySel.value,
+    league: leagueSel.value,
+    season: seasonSel.value,
+    team: teamSel.value,
+    limit: limitSel.value,
+  };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* prywatny tryb */ }
+}
+ 
+function readState() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); }
+  catch { return null; }
+}
+ 
+async function restoreState() {
+  const s = readState();
+  if (!s || !s.country) return;
+ 
+  countrySel.value = s.country;
+  if (!countrySel.value) return;          // kraju nie ma na liscie
+  await loadLeagues();
+ 
+  if (!s.league) return;
+  leagueSel.value = s.league;
+  if (!leagueSel.value) return;
+  await loadSeasons();                     // ustawi domyslny sezon i wczyta druzyny
+ 
+  if (s.season) {
+    seasonSel.value = s.season;
+    if (seasonSel.value) await loadTeams();
+  }
+  if (s.limit) limitSel.value = s.limit;
+ 
+  if (s.team) {
+    teamSel.value = s.team;
+    if (teamSel.value) await loadMatches();
+  }
+}
+ 
+// ---------------- skroty ----------------
+ 
+function buildShortcuts() {
+  const box = $("shortcuts");
+  box.replaceChildren();
+  for (const p of PRESETS) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "★ " + p.label;
+    b.addEventListener("click", () => applyPreset(p));
+    box.append(b);
+  }
+ 
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "clear";
+  clear.textContent = "Wyczysc";
+  clear.addEventListener("click", resetAll);
+  box.append(clear);
+}
+ 
+async function applyPreset(p) {
+  countrySel.value = p.country;
+  if (!countrySel.value) return setStatus(`Brak kraju "${p.country}" na liscie.`, true);
+ 
+  await loadLeagues();
+ 
+  leagueSel.value = String(p.league);
+  if (!leagueSel.value) return setStatus(`Brak rozgrywek o id ${p.league} w tym kraju.`, true);
+ 
+  await loadSeasons();
+  saveState();
+}
+
+function resetAll() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* prywatny tryb */ }
+ 
+  leagues = [];
+  countrySel.value = "";
+  reset(leagueSel, "— rozgrywki —");
+  reset(seasonSel, "— sezon —");
+  reset(teamSel, "— druzyna —");
+  limitSel.value = "10";
+  tbody.replaceChildren();
+  setStatus("");
+}
+
+
+// ---------------- kaskada ----------------
+ 
+async function loadLeagues() {
+  reset(leagueSel, "— rozgrywki —");
+  reset(seasonSel, "— sezon —");
+  reset(teamSel, "— druzyna —");
+  tbody.replaceChildren();
+  saveState();
+  if (!countrySel.value) return setStatus("");
+ 
+  setStatus("Wczytuje rozgrywki…");
+  try {
+    leagues = await api(`/api/leagues?country=${encodeURIComponent(countrySel.value)}`);
+ 
+    leagueSel.replaceChildren();
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = "— rozgrywki —";
+    leagueSel.append(first);
+ 
+    for (const [label, type] of [["Ligi", "League"], ["Puchary", "Cup"]]) {
+      const group = leagues.filter(l => l.type === type);
+      if (!group.length) continue;
+ 
+      const og = document.createElement("optgroup");
+      og.label = label;
+      for (const l of group) {
+        const o = document.createElement("option");
+        o.value = l.id;
+        o.textContent = (l.top ? "★ " : "") + l.name;
+        og.append(o);
+      }
+      leagueSel.append(og);
+    }
+ 
+    for (const l of leagues.filter(l => l.type !== "League" && l.type !== "Cup")) {
+      const o = document.createElement("option");
+      o.value = l.id;
+      o.textContent = l.name;
+      leagueSel.append(o);
+    }
+ 
+    leagueSel.disabled = leagues.length === 0;
+    setStatus(leagues.length ? "" : "Brak rozgrywek dla tego kraju.");
+    refreshQuota();
+  } catch (e) { setStatus(e.message, true); }
+}
+ 
+async function loadSeasons() {
+  reset(seasonSel, "— sezon —");
+  reset(teamSel, "— druzyna —");
+  tbody.replaceChildren();
+  setStatus("");
+  saveState();
+  if (!leagueSel.value) return;
+ 
+  const lg = leagues.find(l => String(l.id) === leagueSel.value);
+  if (!lg) return;
+ 
+  fill(seasonSel, lg.seasons.map(y => ({ value: y, label: y })), null);
+  fill(seasonSel, lg.seasons.map(y => ({ value: y, label: y})), null);
+  seasonSel.value = lg.seasons.find(y => y <= MAX_SEASON) ?? lg.seasons[0];
+  await loadTeams();
+}
+ 
+async function loadTeams() {
+  reset(teamSel, "— druzyna —");
+  tbody.replaceChildren();
+  saveState();
+  if (!leagueSel.value || !seasonSel.value) return setStatus("");
+ 
+  setStatus("Wczytuje druzyny…");
+  try {
+    const teams = await api(`/api/teams?league=${leagueSel.value}&season=${seasonSel.value}`);
+    fill(teamSel, teams.map(t => ({ value: t.id, label: t.name })), "— druzyna —");
+    setStatus(teams.length ? "" : "Brak druzyn dla tego sezonu — sprobuj innego.");
+    refreshQuota();
+  } catch (e) { setStatus(e.message, true); }
+}
+ 
+async function loadMatches() {
+  tbody.replaceChildren();
+  saveState();
+  if (!teamSel.value || !seasonSel.value) return setStatus("");
+ 
+  const want = Number(limitSel.value);
+  const p = new URLSearchParams({
+    team: teamSel.value,
+    season: seasonSel.value,
+    limit: want,
+  });
+  if (leagueSel.value) p.set("league", leagueSel.value);
+ 
+  setStatus("Wczytuje mecze…");
+  try {
+    const rows = await api("/api/matches?" + p);
+    drawRows(rows);
+    refreshQuota();
+ 
+    if (!rows.length) {
+      setStatus("Brak zakonczonych meczow w tym sezonie.");
+    } else if (rows.length < want) {
+      setStatus(`Pokazano ${rows.length} z ${want} — wiecej meczow nie ma w tym sezonie.`);
+    } else {
+      setStatus("");
+    }
+  } catch (e) {
+    setStatus(e.message, true);
+  }
+}
+ 
+// ---------------- tabela ----------------
  
 function cell(text, cls) {
   const td = document.createElement("td");
@@ -273,110 +498,11 @@ function drawRows(rows) {
   }
 }
  
-async function loadMatches() {
-  tbody.replaceChildren();
-  if (!teamSel.value || !seasonSel.value) return setStatus("");
+// ---------------- start ----------------
  
-  const want = Number(limitSel.value);
-    const p = new URLSearchParams({
-    team: teamSel.value,
-    season: seasonSel.value,
-    limit: want,
-  });
-  if (leagueSel.value) p.set("league", leagueSel.value);
- 
-  setStatus("Wczytuje mecze…");
-  try {
-    const rows = await api("/api/matches?" + p);
-    drawRows(rows);
-    refreshQuota();
- 
-    if (!rows.length) {
-      setStatus("Brak zakonczonych meczow w tym sezonie.");
-    } else if (rows.length < want) {
-      setStatus(`Pokazano ${rows.length} z ${want} — wiecej meczow nie ma w tym sezonie.`);
-    } else {
-      setStatus("");
-    }
-  } catch (e) {
-    setStatus(e.message, true);
-  }
-}
- 
-countrySel.addEventListener("change", async () => {
-  reset(leagueSel, "— rozgrywki —");
-  reset(seasonSel, "— sezon —");
-  reset(teamSel, "— druzyna —");
-  tbody.replaceChildren();
-  if (!countrySel.value) return setStatus("");
- 
-  setStatus("Wczytuje rozgrywki…");
-  try {
-    leagues = await api(`/api/leagues?country=${encodeURIComponent(countrySel.value)}`);
- 
-    // ---- zamiast fill(leagueSel, ...) ----
-    leagueSel.replaceChildren();
-    const first = document.createElement("option");
-    first.value = "";
-    first.textContent = "— rozgrywki —";
-    leagueSel.append(first);
- 
-    for (const [label, type] of [["Ligi", "League"], ["Puchary", "Cup"]]) {
-      const group = leagues.filter(l => l.type === type);
-      if (!group.length) continue;
- 
-      const og = document.createElement("optgroup");
-      og.label = label;
-      for (const l of group) {
-        const o = document.createElement("option");
-        o.value = l.id;
-        o.textContent = (l.top ? "★ " : "") + l.name;
-        og.append(o);
-      }
-      leagueSel.append(og);
-    }
- 
-    for (const l of leagues.filter(l => l.type !== "League" && l.type !== "Cup")) {
-      const o = document.createElement("option");
-      o.value = l.id;
-      o.textContent = l.name;
-      leagueSel.append(o);
-    }
- 
-    leagueSel.disabled = leagues.length === 0;
-    setStatus(leagues.length ? "" : "Brak rozgrywek dla tego kraju.");
-  } catch (e) { setStatus(e.message, true); }
-});
- 
-leagueSel.addEventListener("change", () => {
-  reset(seasonSel, "— sezon —");
-  reset(teamSel, "— druzyna —");
-  tbody.replaceChildren();
-  setStatus("");
-  if (!leagueSel.value) return;
- 
-  const lg = leagues.find(l => String(l.id) === leagueSel.value);
-  if (!lg) return;
- 
-  fill(seasonSel, lg.seasons.map(y => ({ value: y, label: y })), null);
-  seasonSel.value = lg.season;
-  seasonSel.dispatchEvent(new Event("change"));
-});
- 
-seasonSel.addEventListener("change", async () => {
-  reset(teamSel, "— druzyna —");
-  tbody.replaceChildren();
-  if (!leagueSel.value || !seasonSel.value) return setStatus("");
- 
-  setStatus("Wczytuje druzyny…");
-  try {
-    const teams = await api(`/api/teams?league=${leagueSel.value}&season=${seasonSel.value}`);
-    fill(teamSel, teams.map(t => ({ value: t.id, label: t.name })), "— druzyna —");
-    setStatus(teams.length ? "" : "Brak druzyn dla tego sezonu — sprobuj innego.");
-    refreshQuota();
-  } catch (e) { setStatus(e.message, true); }
-});
- 
+countrySel.addEventListener("change", loadLeagues);
+leagueSel.addEventListener("change", loadSeasons);
+seasonSel.addEventListener("change", loadTeams);
 teamSel.addEventListener("change", loadMatches);
 limitSel.addEventListener("change", loadMatches);
  
@@ -385,11 +511,14 @@ limitSel.addEventListener("change", loadMatches);
   reset(leagueSel, "— rozgrywki —");
   reset(seasonSel, "— sezon —");
   reset(teamSel, "— druzyna —");
+  buildShortcuts();
+ 
   try {
     const cs = await api("/api/countries");
     fill(countrySel, cs.map(c => ({ value: c.name, label: c.name })), "— kraj —");
     setStatus("");
     refreshQuota();
+    await restoreState();
   } catch (e) { setStatus(e.message, true); }
 })();
 </script>

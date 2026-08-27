@@ -97,11 +97,13 @@ def round_label(r):
         return ""
     if r.startswith("Regular Season - "):
         return "Kolejka " + r.split(" - ")[-1]
+    elif r.startswith("League Stage - "):
+        return "Faza ligowa #" + r.split(" - ")[-1]
 
     tr = {
         "Group Stage": "Faza grupowa",
         "Round of 16": "1/8 finalu",
-        "Quater-finals": "1/4 finalu",
+        "Quarter-finals": "1/4 finalu",
         "Semi-finals": "1/2 finalu",
         "3rd Place Final": "Mecz o 3. miejsce",
         "Final": "Final",
@@ -187,7 +189,7 @@ def leagues(country: str):
             "season": current,
             "seasons": years,
         })
-    return sorted(out, key=lambda x: x["name"])
+    return sorted(out, key=lambda x: (x["type"] != "League", x["id"]))
  
 @app.get("/api/teams")
 def teams(league: int, season: int):
