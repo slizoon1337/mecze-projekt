@@ -313,12 +313,38 @@ countrySel.addEventListener("change", async () => {
   setStatus("Wczytuje rozgrywki…");
   try {
     leagues = await api(`/api/leagues?country=${encodeURIComponent(countrySel.value)}`);
-    fill(leagueSel, leagues.map(l => ({
-      value: l.id,
-      label: l.type ? `${l.name} (${l.type})` : l.name,
-    })), "— rozgrywki —");
+ 
+    // ---- zamiast fill(leagueSel, ...) ----
+    leagueSel.replaceChildren();
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = "— rozgrywki —";
+    leagueSel.append(first);
+ 
+    for (const [label, type] of [["Ligi", "League"], ["Puchary", "Cup"]]) {
+      const group = leagues.filter(l => l.type === type);
+      if (!group.length) continue;
+ 
+      const og = document.createElement("optgroup");
+      og.label = label;
+      for (const l of group) {
+        const o = document.createElement("option");
+        o.value = l.id;
+        o.textContent = (l.top ? "★ " : "") + l.name;
+        og.append(o);
+      }
+      leagueSel.append(og);
+    }
+ 
+    for (const l of leagues.filter(l => l.type !== "League" && l.type !== "Cup")) {
+      const o = document.createElement("option");
+      o.value = l.id;
+      o.textContent = l.name;
+      leagueSel.append(o);
+    }
+ 
+    leagueSel.disabled = leagues.length === 0;
     setStatus(leagues.length ? "" : "Brak rozgrywek dla tego kraju.");
-    refreshQuota();
   } catch (e) { setStatus(e.message, true); }
 });
  
