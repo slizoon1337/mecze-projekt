@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ostatnie mecze — API-Football</title>
+  <style>
+    :root { --bg:#fff; --fg:#111; --muted:#666; --line:#e5e5e5; --card:#fafafa; --hover:#f2f2f2; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#14161a; --fg:#e8e8e8; --muted:#999; --line:#2a2e35; --card:#1b1e24; --hover:#20242b; }
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:2rem 1rem; background:var(--bg); color:var(--fg);
+           font:16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; }
+    main { max-width:1000px; margin:0 auto; }
+    h1 { font-size:1.6rem; margin:0 0 .25rem; }
+    .quota { font-size:.8rem; color:var(--muted); margin:0 0 1.25rem; }
+    .filters { display:flex; flex-wrap:wrap; gap:.75rem; align-items:center; margin-bottom:.75rem; }
+    select { font:inherit; padding:.5rem .7rem; background:var(--card); color:var(--fg);
+             border:1px solid var(--line); border-radius:6px; }
+    select:disabled { opacity:.5; }
+    .grow { min-width:190px; flex:1 1 190px; }
+    label { display:flex; align-items:center; gap:.4rem; font-size:.85rem; color:var(--muted); }
+    #status { min-height:1.5rem; font-size:.85rem; color:var(--muted); margin-bottom:1rem; }
+    #status.error { color:#b62324; }
+    .wrap { overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
+    table { width:100%; border-collapse:collapse; font-size:.92rem; }
+    th, td { padding:.7rem .9rem; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th { background:var(--card); font-weight:600; font-size:.78rem;
+         text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+    tr:last-child td { border-bottom:none; }
+    tr.match { cursor:pointer; }
+    tr.match:hover { background:var(--hover); }
+    .score { font-variant-numeric:tabular-nums; font-weight:600; }
+    .team { display:flex; align-items:center; gap:.5rem; }
+    .team img { width:20px; height:20px; object-fit:contain; flex-shrink:0; }
+    .badge { display:inline-block; width:1.5rem; text-align:center; border-radius:4px;
+             font-weight:700; font-size:.78rem; padding:.15rem 0; color:#fff; }
+    .W { background:#1a7f37; } .D { background:#8a6d00; } .L { background:#b62324; }
+    .muted { color:var(--muted); font-size:.85rem; }
+    tr.details td { background:var(--card); white-space:normal; }
+    .events { list-style:none; margin:0; padding:0; display:grid; gap:.3rem; }
+    .events li { display:flex; gap:.6rem; align-items:baseline; font-size:.88rem; }
+    .ev-min { min-width:3.2rem; color:var(--muted); font-variant-numeric:tabular-nums; }
+    .ev-ico { min-width:1.6rem; }
+    .ev-note { color:var(--muted); font-size:.82rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Ostatnie mecze</h1>
+  <p class="quota" id="quota"></p>
+ 
+  <div class="filters">
+    <select id="country" class="grow" aria-label="Kraj"></select>
+    <select id="league"  class="grow" aria-label="Rozgrywki" disabled></select>
+    <select id="season"  aria-label="Sezon" disabled></select>
+    <select id="team"    class="grow" aria-label="Druzyna" disabled></select>
+    <label>Liczba meczow
+      <select id="limit">
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+        <option value="20">20</option>
+        <option value="50">50</option>
+      </select>
+    </label>
+  </div>
+ 
+  <div id="status"></div>
+ 
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Gospodarz</th><th>Wynik</th><th>Gosc</th>
+            <th>Rozgrywki</th><th>Kolejka</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <p class="muted">Kliknij mecz, zeby zobaczyc gole i kartki.</p>
+</main>
+ 
+<script>
+const $ = id => document.getElementById(id);
+const countrySel = $("country"), leagueSel = $("league"),
+      seasonSel  = $("season"),  teamSel   = $("team"),
+      limitSel   = $("limit");
+const tbody = $("rows"), statusBox = $("status"), quotaBox = $("quota");
+ 
+let leagues = [];          // pelne dane lig, zeby znac liste sezonow
+ 
+function setStatus(msg, isError = false) {
+  statusBox.textContent = msg;
+  statusBox.classList.toggle("error", isError);
+}
+ 
+async function api(path) {
+  const r = await fetch(path);
+  const data = await r.json().catch(() => null);
+  if (!r.ok) {
+    const d = data?.detail;
+    const msg = Array.isArray(d) ? d.map(x => x.msg).join("; ") : (d || `HTTP ${r.status}`);
+    throw new Error(msg);
+  }
+  return data;
+}
+ 
+async function refreshQuota() {
+  try {
+    const q = await api("/api/quota");
+    quotaBox.textContent = q.remaining
+      ? `Pozostale zapytania dzisiaj: ${q.remaining} / ${q.limit}`
+      : "";
+  } catch { /* nieistotne */ }
+}
+ 
+function fill(sel, items, placeholder) {
+  sel.replaceChildren();
+  if (placeholder !== null) {
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = placeholder;
+    sel.append(first);
+  }
+  for (const it of items) {
+    const o = document.createElement("option");
+    o.value = it.value;
+    o.textContent = it.label;
+    sel.append(o);
+  }
+  sel.disabled = items.length === 0;
+}
+ 
+function reset(sel, placeholder) {
+  fill(sel, [], placeholder);
+  sel.disabled = true;
+}
+ 
+function cell(text, cls) {
+  const td = document.createElement("td");
+  td.textContent = text;
+  if (cls) td.className = cls;
+  return td;
+}
+ 
+function teamCell(name, logo) {
+  const td = document.createElement("td");
+  const span = document.createElement("span");
+  span.className = "team";
+  if (logo) {
+    const img = document.createElement("img");
+    img.src = logo; img.alt = ""; img.loading = "lazy";
+    span.append(img);
+  }
+  span.append(document.createTextNode(name));
+  td.append(span);
+  return td;
+}
+ 
+function eventIcon(ev) {
+  if (ev.type === "goal") {
+    if (ev.detail === "Missed Penalty") return "✗";
+    return "⚽";
+  }
+  if (ev.type === "card") {
+    if (ev.detail.startsWith("Second Yellow")) return "🟨🟥";
+    if (ev.detail.startsWith("Yellow")) return "🟨";
+    if (ev.detail.startsWith("Red")) return "🟥";
+  }
+  if (ev.type === "subst") return "🔄";
+  return "•";
+}
+ 
+function eventNote(ev) {
+  const parts = [];
+  if (ev.detail === "Own Goal") parts.push("samobojcza");
+  if (ev.detail === "Penalty") parts.push("z karnego");
+  if (ev.detail === "Missed Penalty") parts.push("niewykorzystany karny");
+  if (ev.assist) parts.push(`asysta: ${ev.assist}`);
+  if (ev.team) parts.push(ev.team);
+  return parts.length ? `(${parts.join(", ")})` : "";
+}
+ 
+function renderEvents(evs) {
+  const shown = evs.filter(e => e.type === "goal" || e.type === "card");
+  if (!shown.length) {
+    const p = document.createElement("span");
+    p.className = "muted";
+    p.textContent = "Brak zdarzen dla tego meczu.";
+    return p;
+  }
+ 
+  const ul = document.createElement("ul");
+  ul.className = "events";
+  for (const ev of shown) {
+    const li = document.createElement("li");
+ 
+    const min = document.createElement("span");
+    min.className = "ev-min";
+    min.textContent = ev.minute + "'";
+ 
+    const ico = document.createElement("span");
+    ico.className = "ev-ico";
+    ico.textContent = eventIcon(ev);
+ 
+    const who = document.createElement("span");
+    who.textContent = ev.player;
+ 
+    const note = document.createElement("span");
+    note.className = "ev-note";
+    note.textContent = eventNote(ev);
+ 
+    li.append(min, ico, who, note);
+    ul.append(li);
+  }
+  return ul;
+}
+ 
+async function toggleEvents(tr, fixtureId) {
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains("details")) {
+    next.remove();
+    return;
+  }
+ 
+  const detail = document.createElement("tr");
+  detail.className = "details";
+  const td = document.createElement("td");
+  td.colSpan = 7;
+  td.textContent = "Wczytuje zdarzenia…";
+  detail.append(td);
+  tr.after(detail);
+ 
+  try {
+    const evs = await api(`/api/events?fixture=${fixtureId}`);
+    td.replaceChildren(renderEvents(evs));
+    refreshQuota();
+  } catch (e) {
+    td.textContent = e.message;
+  }
+}
+ 
+function drawRows(rows) {
+  tbody.replaceChildren();
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = cell("Brak meczow dla podanych kryteriow.", "muted");
+    td.colSpan = 7;
+    tr.append(td);
+    tbody.append(tr);
+    return;
+  }
+ 
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    tr.className = "match";
+    tr.append(cell(r.date, "muted"));
+    tr.append(teamCell(r.home, r.home_logo));
+    tr.append(cell(r.score, "score"));
+    tr.append(teamCell(r.away, r.away_logo));
+    tr.append(cell(r.competition, "muted"));
+    tr.append(cell(r.round, "muted"));
+ 
+    const td = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = "badge " + r.result;
+    badge.textContent = r.result;
+    td.append(badge);
+    tr.append(td);
+ 
+    tr.addEventListener("click", () => toggleEvents(tr, r.fixture_id));
+    tbody.append(tr);
+  }
+}
+ 
+async function loadMatches() {
+  tbody.replaceChildren();
+  if (!teamSel.value || !seasonSel.value) return setStatus("");
+ 
+  const want = Number(limitSel.value);
+    const p = new URLSearchParams({
+    team: teamSel.value,
+    season: seasonSel.value,
+    limit: want,
+  });
+  if (leagueSel.value) p.set("league", leagueSel.value);
+ 
+  setStatus("Wczytuje mecze…");
+  try {
+    const rows = await api("/api/matches?" + p);
+    drawRows(rows);
+    refreshQuota();
+ 
+    if (!rows.length) {
+      setStatus("Brak zakonczonych meczow w tym sezonie.");
+    } else if (rows.length < want) {
+      setStatus(`Pokazano ${rows.length} z ${want} — wiecej meczow nie ma w tym sezonie.`);
+    } else {
+      setStatus("");
+    }
+  } catch (e) {
+    setStatus(e.message, true);
+  }
+}
+ 
+countrySel.addEventListener("change", async () => {
+  reset(leagueSel, "— rozgrywki —");
+  reset(seasonSel, "— sezon —");
+  reset(teamSel, "— druzyna —");
+  tbody.replaceChildren();
+  if (!countrySel.value) return setStatus("");
+ 
+  setStatus("Wczytuje rozgrywki…");
+  try {
+    leagues = await api(`/api/leagues?country=${encodeURIComponent(countrySel.value)}`);
+    fill(leagueSel, leagues.map(l => ({
+      value: l.id,
+      label: l.type ? `${l.name} (${l.type})` : l.name,
+    })), "— rozgrywki —");
+    setStatus(leagues.length ? "" : "Brak rozgrywek dla tego kraju.");
+    refreshQuota();
+  } catch (e) { setStatus(e.message, true); }
+});
+ 
+leagueSel.addEventListener("change", () => {
+  reset(seasonSel, "— sezon —");
+  reset(teamSel, "— druzyna —");
+  tbody.replaceChildren();
+  setStatus("");
+  if (!leagueSel.value) return;
+ 
+  const lg = leagues.find(l => String(l.id) === leagueSel.value);
+  if (!lg) return;
+ 
+  fill(seasonSel, lg.seasons.map(y => ({ value: y, label: y })), null);
+  seasonSel.value = lg.season;
+  seasonSel.dispatchEvent(new Event("change"));
+});
+ 
+seasonSel.addEventListener("change", async () => {
+  reset(teamSel, "— druzyna —");
+  tbody.replaceChildren();
+  if (!leagueSel.value || !seasonSel.value) return setStatus("");
+ 
+  setStatus("Wczytuje druzyny…");
+  try {
+    const teams = await api(`/api/teams?league=${leagueSel.value}&season=${seasonSel.value}`);
+    fill(teamSel, teams.map(t => ({ value: t.id, label: t.name })), "— druzyna —");
+    setStatus(teams.length ? "" : "Brak druzyn dla tego sezonu — sprobuj innego.");
+    refreshQuota();
+  } catch (e) { setStatus(e.message, true); }
+});
+ 
+teamSel.addEventListener("change", loadMatches);
+limitSel.addEventListener("change", loadMatches);
+ 
+(async () => {
+  setStatus("Wczytuje kraje…");
+  reset(leagueSel, "— rozgrywki —");
+  reset(seasonSel, "— sezon —");
+  reset(teamSel, "— druzyna —");
+  try {
+    const cs = await api("/api/countries");
+    fill(countrySel, cs.map(c => ({ value: c.name, label: c.name })), "— kraj —");
+    setStatus("");
+    refreshQuota();
+  } catch (e) { setStatus(e.message, true); }
+})();
+</script>
+</body>
+</html>
