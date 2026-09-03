@@ -143,6 +143,7 @@ def build_row(f, team_id):
         "away_logo": away.get("logo") or "",
         "score": (f"{gh}:{ga}" if gh is not None else "-") + pen_txt,
         "competition": f["league"]["name"],
+        "competition_logo": f["league"].get("logo") or "",
         "round": round_label(f["league"].get("round")),
         "result": result,
     }

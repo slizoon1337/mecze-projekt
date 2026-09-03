@@ -368,17 +368,19 @@ function cell(text, cls) {
   return td;
 }
  
-function teamCell(name, logo) {
+function logoCell(text, logo, cls) {
   const td = document.createElement("td");
   const span = document.createElement("span");
   span.className = "team";
   if (logo) {
     const img = document.createElement("img");
     img.src = logo; img.alt = ""; img.loading = "lazy";
+    img.addEventListener("error", () => img.remove());
     span.append(img);
   }
-  span.append(document.createTextNode(name));
+  span.append(document.createTextNode(text));
   td.append(span);
+  if (cls) td.className = cls;
   return td;
 }
  
@@ -480,10 +482,10 @@ function drawRows(rows) {
     const tr = document.createElement("tr");
     tr.className = "match";
     tr.append(cell(r.date, "muted"));
-    tr.append(teamCell(r.home, r.home_logo));
+    tr.append(logoCell(r.home, r.home_logo));
     tr.append(cell(r.score, "score"));
-    tr.append(teamCell(r.away, r.away_logo));
-    tr.append(cell(r.competition, "muted"));
+    tr.append(logoCell(r.away, r.away_logo));
+    tr.append(logoCell(r.competition, r.competition_logo, "muted"));
     tr.append(cell(r.round, "muted"));
  
     const td = document.createElement("td");
