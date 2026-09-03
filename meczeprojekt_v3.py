@@ -259,6 +259,29 @@ def events(fixture: int):
  
     return sorted(out, key=lambda x: x["sort"])
 
+def zone(desc):
+    """Strefa w tabeli na podstawie opisu z API."""
+    d = (desc or "").lower()
+    if not d:
+        return ""
+    if "champions league" in d:
+        return "ucl"
+    if "europa league" in d:
+        return "uel"
+    if "conference" in d:
+        return "uecl"
+    if "relegation" in d:
+        return "rel"
+    if "promotion" in d:
+        return "pro"
+    return ""
+
+def clean_desc(desc):
+    d = (desc or "").strip()
+    if d.endswith(": )") and "(" in d:
+        d = d[:d.rindex("(")].strip()
+    return d
+
 @app.get("/api/standings")
 def standings(league: int, season: int):
     data = api_get("/standings", TTL_MATCHES, league=league, season=season) or []
@@ -289,6 +312,8 @@ def standings(league: int, season: int):
                 "diff": t.get("goalsDiff"),
                 "points": t.get("points"),
                 "form": t.get("form") or "",
+                "zone": zone(t.get("description")),
+                "note": clean_desc(t.get("description")),
             }
             buckets.setdefault(t.get("group") or "", []).append(row)
  

@@ -58,6 +58,17 @@
     .form { display:inline-flex; gap:.15rem; }
     .form i { width:.85rem; height:.85rem; border-radius:2px; font-style:normal;
               font-size:.6rem; line-height:.85rem; text-align:center; color:#fff; }
+                  .st td.rank { border-left:4px solid transparent; }
+    .st tr.z-ucl  td.rank { border-left-color:#1a5fb4; }
+    .st tr.z-uel  td.rank { border-left-color:#e07000; }
+    .st tr.z-uecl td.rank { border-left-color:#1a7f37; }
+    .st tr.z-pro  td.rank { border-left-color:#6a3fb5; }
+    .st tr.z-rel  td.rank { border-left-color:#b62324; }
+ 
+    .legend { display:flex; flex-wrap:wrap; gap:1rem; margin:.7rem 0 0;
+              font-size:.8rem; color:var(--muted); }
+    .legend span { display:flex; align-items:center; gap:.4rem; }
+    .legend i { width:.9rem; height:.9rem; border-radius:2px; display:inline-block; }
   </style>
 </head>
 <body>
@@ -118,7 +129,16 @@ const PRESETS = [
   { label: "Ekstraklasa",    country: "Poland",  league: 106 },
   { label: "Liga Mistrzow",  country: "World",   league: 2 },
 ];
- 
+
+const ZONE_LABELS = {
+  ucl:  ["Liga Mistrzow",     "#1a5fb4"],
+  uel:  ["Liga Europy",       "#e07000"],
+  uecl: ["Liga Konferencji",  "#1a7f37"],
+  pro:  ["Awans",             "#6a3fb5"],
+  rel:  ["Spadek",            "#b62324"],
+};
+
+
 function setStatus(msg, isError = false) {
   statusBox.textContent = msg;
   statusBox.classList.toggle("error", isError);
@@ -407,9 +427,16 @@ async function loadStandings() {
     const tb = document.createElement("tbody");
     for (const r of g.rows) {
       const tr = document.createElement("tr");
-      if (String(r.team_id) === teamSel.value) tr.className = "hl";
+      if (r.zone) tr.classList.add("z-" + r.zone);
+      if (String(r.team_id) === teamSel.value) tr.classList.add("hl");
  
-      tr.append(cell(r.rank, "num"));
+      const rankTd = cell(r.rank, "num rank");
+      const zl = ZONE_LABELS[r.zone];
+      if (zl) rankTd.title = zl[0];
+      else if (r.note) rankTd.title = r.note;
+      tr.append(rankTd);
+
+      tr.append(rankTd);
       tr.append(logoCell(r.team, r.logo));
       tr.append(cell(r.played, "num"));
       tr.append(cell(r.win, "num"));
@@ -425,6 +452,28 @@ async function loadStandings() {
     table.append(tb);
     wrap.append(table);
     box.append(wrap);
+  }
+  const present = new Set();
+  for (const g of groups) {
+    for (const r of g.rows) {
+      if (ZONE_LABELS[r.zone]) present.add(r.zone);
+    }
+  }
+ 
+  if (present.size) {
+    const legend = document.createElement("p");
+    legend.className = "legend";
+    for (const key of Object.keys(ZONE_LABELS)) {
+      if (!present.has(key)) continue;
+      const [label, color] = ZONE_LABELS[key];
+ 
+      const item = document.createElement("span");
+      const swatch = document.createElement("i");
+      swatch.style.background = color;
+      item.append(swatch, document.createTextNode(label));
+      legend.append(item);
+    }
+    box.append(legend);
   }
 }
 
