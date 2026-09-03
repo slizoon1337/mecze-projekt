@@ -258,3 +258,41 @@ def events(fixture: int):
         })
  
     return sorted(out, key=lambda x: x["sort"])
+
+@app.get("/api/standings")
+def standings(league: int, season: int):
+    data = api_get("/standings", TTL_MATCHES, league=league, season=season) or []
+    if not data:
+        return []
+ 
+    groups = (data[0].get("league") or {}).get("standings") or []
+ 
+    # grupujemy po polu "group" z wiersza, nie po zagniezdzeniu z API
+    buckets = {}
+    for g in groups:
+        for t in g:
+            st = t.get("all") or {}
+            goals = st.get("goals") or {}
+            team = t.get("team") or {}
+ 
+            row = {
+                "rank": t.get("rank"),
+                "team_id": team.get("id"),
+                "team": team.get("name") or "?",
+                "logo": team.get("logo") or "",
+                "played": st.get("played"),
+                "win": st.get("win"),
+                "draw": st.get("draw"),
+                "lose": st.get("lose"),
+                "gf": goals.get("for"),
+                "ga": goals.get("against"),
+                "diff": t.get("goalsDiff"),
+                "points": t.get("points"),
+                "form": t.get("form") or "",
+            }
+            buckets.setdefault(t.get("group") or "", []).append(row)
+ 
+    return [
+        {"name": name, "rows": sorted(rows, key=lambda r: r["rank"] or 999)}
+        for name, rows in buckets.items()
+    ]

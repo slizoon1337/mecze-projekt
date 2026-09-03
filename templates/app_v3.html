@@ -50,6 +50,14 @@
       border-radius:999px; cursor:pointer; }
     .shortcuts button:hover { background:var(--hover); }
     .shortcuts button.clear { margin-left:auto; color:var(--muted); }
+    .st-title { font-size:1.1rem; margin:2rem 0 .6rem; }
+    .st-group { font-size:.85rem; color:var(--muted); margin:.9rem 0 .4rem; }
+    .st td, .st th { padding:.5rem .7rem; }
+    .st .num { text-align:right; font-variant-numeric:tabular-nums; }
+    .st tr.hl { background:var(--hover); font-weight:600; }
+    .form { display:inline-flex; gap:.15rem; }
+    .form i { width:.85rem; height:.85rem; border-radius:2px; font-style:normal;
+              font-size:.6rem; line-height:.85rem; text-align:center; color:#fff; }
   </style>
 </head>
 <body>
@@ -86,6 +94,7 @@
     </table>
   </div>
   <p class="muted">Kliknij mecz, zeby zobaczyc gole i kartki.</p>
+  <div id="standings"></div>
 </main>
  
 <script>
@@ -244,6 +253,7 @@ function resetAll() {
   reset(teamSel, "— druzyna —");
   limitSel.value = "10";
   tbody.replaceChildren();
+  clearStandings();
   setStatus("");
 }
 
@@ -255,6 +265,7 @@ async function loadLeagues() {
   reset(seasonSel, "— sezon —");
   reset(teamSel, "— druzyna —");
   tbody.replaceChildren();
+  clearStandings();
   saveState();
   if (!countrySel.value) return setStatus("");
  
@@ -300,6 +311,7 @@ async function loadSeasons() {
   reset(seasonSel, "— sezon —");
   reset(teamSel, "— druzyna —");
   tbody.replaceChildren();
+  clearStandings();
   setStatus("");
   saveState();
   if (!leagueSel.value) return;
@@ -316,6 +328,7 @@ async function loadSeasons() {
 async function loadTeams() {
   reset(teamSel, "— druzyna —");
   tbody.replaceChildren();
+  clearStandings();
   saveState();
   if (!leagueSel.value || !seasonSel.value) return setStatus("");
  
@@ -327,7 +340,95 @@ async function loadTeams() {
     refreshQuota();
   } catch (e) { setStatus(e.message, true); }
 }
+
+function formCell(form) {
+  const td = document.createElement("td");
+  const box = document.createElement("span");
+  box.className = "form";
+  for (const ch of (form || "").slice(-5)) {
+    const i = document.createElement("i");
+    i.className = ch;              // W / D / L — te same kolory co plakietki
+    i.textContent = ch;
+    box.append(i);
+  }
+  td.append(box);
+  return td;
+}
+
+function clearStandings() {
+  $("standings").replaceChildren();
+}
+
+async function loadStandings() {
+  const box = $("standings");
+  box.replaceChildren();
+  if (!leagueSel.value || !seasonSel.value) return;
  
+  let groups;
+  try {
+    groups = await api(`/api/standings?league=${leagueSel.value}&season=${seasonSel.value}`);
+  } catch {
+    return;                        // brak tabeli nie moze psuc listy meczow
+  }
+  refreshQuota();
+  if (!groups.length) return;      // puchary bez fazy grupowej
+ 
+  const title = document.createElement("h2");
+  title.className = "st-title";
+  title.textContent = "Tabela";
+  box.append(title);
+ 
+  for (const g of groups) {
+    if (g.name) {
+      const h = document.createElement("p");
+      h.className = "st-group";
+      h.textContent = g.name;
+      box.append(h);
+    }
+ 
+    const wrap = document.createElement("div");
+    wrap.className = "wrap";
+    const table = document.createElement("table");
+    table.className = "st";
+ 
+    const thead = document.createElement("thead");
+    const hr = document.createElement("tr");
+    for (const [label, cls] of [["#", "num"], ["Druzyna", ""], ["M", "num"],
+                                ["W", "num"], ["R", "num"], ["P", "num"],
+                                ["Bramki", "num"], ["+/-", "num"], ["Pkt", "num"], ["Forma", ""]]) {
+      const th = document.createElement("th");
+      th.textContent = label;
+      if (cls) th.className = cls;
+      hr.append(th);
+    }
+    thead.append(hr);
+    table.append(thead);
+ 
+    const tb = document.createElement("tbody");
+    for (const r of g.rows) {
+      const tr = document.createElement("tr");
+      if (String(r.team_id) === teamSel.value) tr.className = "hl";
+ 
+      tr.append(cell(r.rank, "num"));
+      tr.append(logoCell(r.team, r.logo));
+      tr.append(cell(r.played, "num"));
+      tr.append(cell(r.win, "num"));
+      tr.append(cell(r.draw, "num"));
+      tr.append(cell(r.lose, "num"));
+      tr.append(cell(`${r.gf}:${r.ga}`, "num"));
+      tr.append(cell(r.diff > 0 ? `+${r.diff}` : r.diff, "num"));
+      tr.append(cell(r.points, "num"));
+      tr.append(formCell(r.form));
+ 
+      tb.append(tr);
+    }
+    table.append(tb);
+    wrap.append(table);
+    box.append(wrap);
+  }
+}
+
+
 async function loadMatches() {
   tbody.replaceChildren();
   saveState();
@@ -353,6 +454,7 @@ async function loadMatches() {
       setStatus(`Pokazano ${rows.length} z ${want} — wiecej meczow nie ma w tym sezonie.`);
     } else {
       setStatus("");
+      loadStandings();
     }
   } catch (e) {
     setStatus(e.message, true);
