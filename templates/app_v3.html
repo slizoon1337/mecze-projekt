@@ -358,8 +358,10 @@ async function loadTeams() {
     fill(teamSel, teams.map(t => ({ value: t.id, label: t.name })), "— druzyna —");
     setStatus(teams.length ? "" : "Brak druzyn dla tego sezonu — sprobuj innego.");
     refreshQuota();
+    loadStandings();
   } catch (e) { setStatus(e.message, true); }
 }
+
 
 function formCell(form) {
   const td = document.createElement("td");
@@ -428,7 +430,7 @@ async function loadStandings() {
     for (const r of g.rows) {
       const tr = document.createElement("tr");
       if (r.zone) tr.classList.add("z-" + r.zone);
-      if (String(r.team_id) === teamSel.value) tr.classList.add("hl");
+      tr.dataset.team = r.team_id;
  
       const rankTd = cell(r.rank, "num rank");
       const zl = ZONE_LABELS[r.zone];
@@ -475,12 +477,20 @@ async function loadStandings() {
     }
     box.append(legend);
   }
+
+  highlightTeam();
 }
 
+function highlightTeam() {
+  for (const tr of document.querySelectorAll("#standings tr[data-team]")) {
+    tr.classList.toggle("hl", tr.dataset.team === teamSel.value);
+  }
+}
 
 async function loadMatches() {
   tbody.replaceChildren();
   saveState();
+  highlightTeam();
   if (!teamSel.value || !seasonSel.value) return setStatus("");
  
   const want = Number(limitSel.value);
@@ -503,12 +513,12 @@ async function loadMatches() {
       setStatus(`Pokazano ${rows.length} z ${want} — wiecej meczow nie ma w tym sezonie.`);
     } else {
       setStatus("");
-      loadStandings();
     }
   } catch (e) {
     setStatus(e.message, true);
   }
 }
+
  
 // ---------------- tabela ----------------
  
