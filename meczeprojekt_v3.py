@@ -259,6 +259,52 @@ def events(fixture: int):
  
     return sorted(out, key=lambda x: x["sort"])
 
+STATS = [
+    ("Ball Possession", "Posiadanie pilki"),
+    ("expected_goals", "xG"),
+    ("Total Shots", "Strzaly"),
+    ("Shots on Goal", "Strzaly celne"),
+    ("Corner Kicks", "Rzuty rozne"),
+    ("Fouls", "Faule"),
+    ("Offsides", "Spalone"),
+    ("Goalkeeper Saves", "Strzaly obronione"),
+    ("Total passes", "Podania"),
+    ("Passes %", "Celnosc podan"),
+]
+
+def num(v):
+    if v is None:
+        return 0.0
+    try:
+        return float(str(v).rstrip("%"))
+    except ValueError:
+        return 0.0
+
+@app.get("/api/stats")
+def stats(fixture:int):
+    data = api_get("/fixtures/statistics", TTL_EVENTS, fixture=fixture) or []
+    if len(data) < 2:
+        return []
+
+    home, away = (
+        {s.get("type"): s.get("value") for s in (t.get("statistics") or [])}
+        for t in data[:2]
+    )
+
+    out = []
+    for key, label in STATS:
+        h,a = home.get(key), away.get(key)
+        if h is None and a is None:
+            continue
+        out.append({
+            "label": label,
+            "home": "0" if h is None else str(h),
+            "away": "0" if a is None else str(a),
+            "h": num(h),
+            "a": num(a),
+        })
+    return out
+
 def zone(desc):
     """Strefa w tabeli na podstawie opisu z API."""
     d = (desc or "").lower()

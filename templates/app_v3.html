@@ -39,7 +39,7 @@
     .W { background:#1a7f37; } .D { background:#8a6d00; } .L { background:#b62324; }
     .muted { color:var(--muted); font-size:.85rem; }
     tr.details td { background:var(--card); white-space:normal; }
-    .events { list-style:none; margin:0; padding:0; display:grid; gap:.3rem; }
+    .events { list-style:none; margin:0 auto; padding:0; display:grid; gap:.3rem; max-width:520px; }
     .events li { display:flex; gap:.6rem; align-items:baseline; font-size:.88rem; }
     .ev-min { min-width:3.2rem; color:var(--muted); font-variant-numeric:tabular-nums; }
     .ev-ico { min-width:1.6rem; }
@@ -69,6 +69,15 @@
               font-size:.8rem; color:var(--muted); }
     .legend span { display:flex; align-items:center; gap:.4rem; }
     .legend i { width:.9rem; height:.9rem; border-radius:2px; display:inline-block; }
+    .stats { display:grid; gap:.5rem; margin:1rem auto 0; max-width:520px; }
+    .stat { display:grid; grid-template-columns:4rem 1fr 4rem; align-items:center;
+            row-gap:.2rem; font-size:.85rem; }
+    .stat-label { text-align:center; color:var(--muted); }
+    .stat-val { font-weight:600; font-variant-numeric:tabular-nums; }
+    .stat-val.away { text-align:right; }
+    .stat-bar { grid-column:1 / -1; height:4px; border-radius:2px;
+                background:linear-gradient(to right, #1a5fb4 var(--share), var(--line) var(--share)); }
+
   </style>
 </head>
 <body>
@@ -104,7 +113,7 @@
       <tbody id="rows"></tbody>
     </table>
   </div>
-  <p class="muted">Kliknij mecz, zeby zobaczyc gole i kartki.</p>
+  <p class="muted">Kliknij mecz, zeby zobaczyc statystyki.</p>
   <div id="standings"></div>
 </main>
  
@@ -603,6 +612,48 @@ function renderEvents(evs) {
   }
   return ul;
 }
+
+function renderStats(stats) {
+  const box = document.createElement("div");
+  box.className = "stats";
+ 
+  if (stats instanceof Error) {
+    box.className = "muted";
+    box.textContent = "Nie udalo sie wczytac statystyk: " + stats.message;
+    return box;
+  }
+  if (!stats.length) {
+    box.className = "muted";
+    box.textContent = "Brak statystyk dla tego meczu.";
+    return box;
+  }
+ 
+  for (const s of stats) {
+    const row = document.createElement("div");
+    row.className = "stat";
+ 
+    const h = document.createElement("span");
+    h.className = "stat-val";
+    h.textContent = s.home;
+ 
+    const label = document.createElement("span");
+    label.className = "stat-label";
+    label.textContent = s.label;
+ 
+    const a = document.createElement("span");
+    a.className = "stat-val away";
+    a.textContent = s.away;
+ 
+    const total = s.h + s.a;
+    const bar = document.createElement("div");
+    bar.className = "stat-bar";
+    bar.style.setProperty("--share", (total ? (s.h / total) * 100 : 50) + "%");
+ 
+    row.append(h, label, a, bar);
+    box.append(row);
+  }
+  return box;
+}
  
 async function toggleEvents(tr, fixtureId) {
   const next = tr.nextElementSibling;
@@ -620,8 +671,11 @@ async function toggleEvents(tr, fixtureId) {
   tr.after(detail);
  
   try {
-    const evs = await api(`/api/events?fixture=${fixtureId}`);
-    td.replaceChildren(renderEvents(evs));
+    const [evs, stats] = await Promise.all([
+      api(`/api/events?fixture=${fixtureId}`),
+      api(`/api/stats?fixture=${fixtureId}`).catch(e => e),
+    ]);
+    td.replaceChildren(renderEvents(evs), renderStats(stats));
     refreshQuota();
   } catch (e) {
     td.textContent = e.message;

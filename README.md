@@ -9,8 +9,8 @@ Trzy wersje, trzy różne architektury.
 | **v2** `meczeprojekt_v2.py` | `uvicorn` | kraj → liga → drużyna | football-data.org | lokalnie |
 | **v3** `meczeprojekt_v3.py` | `uvicorn` | kraj → liga → sezon → drużyna | API-Football | lokalnie |
  
-**v3 dodatkowo:** gole i kartki po kliknięciu w mecz, skróty do popularnych lig,
-cache na dysku, pamiętanie ostatniego wyboru.
+**v3 dodatkowo:** tabela ligowa ze strefami pucharowymi, gole, kartki i statystyki
+po kliknięciu w mecz, skróty do popularnych lig, cache na dysku, pamiętanie ostatniego wyboru.
  
 ## Start
  
@@ -69,15 +69,58 @@ uvicorn meczeprojekt_v3:app --reload
  
 → http://127.0.0.1:8000 · dokumentacja API: `/docs`
  
-Kliknięcie w mecz rozwija listę goli i kartek z minutami i asystami.
+### Co potrafi
  
-**Ograniczenia darmowego planu API-Football:**
+- **Wybór** kraj → rozgrywki (osobno ligi i puchary) → sezon → drużyna oraz liczba meczów (5–50)
+- **Skróty** do popularnych lig: Premier League, La Liga, Bundesliga, Serie A, Ligue 1,
+  Ekstraklasa, Liga Mistrzów. Ostatni wybór zapamiętuje przeglądarka, przycisk „Wyczyść” go kasuje
+- **Lista meczów** z logami drużyn i rozgrywek, kolejką lub fazą turnieju, wynikiem
+  (razem z karnymi) i plakietką W/D/L
+- **Szczegóły meczu** po kliknięciu:
+  - gole i kartki z minutami, asystami, karnymi i samobójami
+  - statystyki z paskami porównania: posiadanie piłki, strzały, xG, rzuty rożne,
+    faule, spalone, obrony bramkarza, podania
+- **Tabela ligowa** pod meczami, wczytywana zaraz po wyborze sezonu:
+  - kolorowe strefy (Liga Mistrzów, Liga Europy, Liga Konferencji, awans, spadek) z legendą
+  - forma z 5 ostatnich meczów
+  - podświetlona wybrana drużyna
+  - w pucharach z fazą grupową osobna tabela dla każdej grupy
+- **Licznik** pozostałych zapytań na dziś
+ 
+### Endpointy
+ 
+| Endpoint | Zwraca |
+|---|---|
+| `/api/countries` | kraje |
+| `/api/leagues?country=` | ligi i puchary kraju z listą sezonów |
+| `/api/teams?league=&season=` | drużyny w lidze i sezonie |
+| `/api/matches?team=&season=&league=&limit=` | ostatnie zakończone mecze (limit 1–50) |
+| `/api/events?fixture=` | gole, kartki i zmiany w meczu |
+| `/api/stats?fixture=` | statystyki meczu |
+| `/api/standings?league=&season=` | tabela ligowa |
+| `/api/quota` | pozostałe zapytania na dziś |
+ 
+### Cache
+ 
+Odpowiedzi API-Football trafiają do `cache.db` (SQLite) i przeżywają restart serwera.
+Przy dobowym limicie zapytań to konieczność. Czas ważności zależy od rodzaju danych:
+ 
+| Dane | Ważność |
+|---|---|
+| kraje, ligi | 30 dni |
+| drużyny | 7 dni |
+| mecze, tabela | 1 godzina |
+| zdarzenia i statystyki meczu | 30 dni |
+ 
+Kasowanie: `rm cache.db`.
+ 
+### Ograniczenia darmowego planu API-Football
+ 
 - 100 zapytań na dobę (licznik widoczny na stronie)
 - sezony 2022–2024, bez bieżącego
-- brak parametru `last` - dlatego pobierany jest cały sezon i filtrowany lokalnie
- 
-Cache siedzi w `cache.db` i przeżywa restart serwera - przy dobowym limicie to konieczność.
-Kasowanie: `rm cache.db`.
+- brak parametru `last`, dlatego pobierany jest cały sezon i filtrowany lokalnie
+- statystyki i strefy w tabeli są tylko tam, gdzie API je zbiera. W mniejszych ligach
+  może ich brakować, a xG jest głównie w topowych ligach
  
 ---
  
@@ -95,9 +138,11 @@ Kasowanie: `rm cache.db`.
 │   └── app_v3.html         # frontend v3
 ├── index.html              # wynik v1
 ├── requirements.txt
+├── .env.example            # wzór pliku z kluczami
 └── .env                    # klucze, ignorowany przez Gita
 ```
-
+ 
 ## Źródła danych
  
 [football-data.org](https://www.football-data.org/) · [API-Football](https://www.api-football.com/)
+ 
