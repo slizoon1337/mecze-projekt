@@ -74,8 +74,8 @@ uvicorn meczeprojekt_v3:app --reload
 - **Wybór** kraj → rozgrywki (osobno ligi i puchary) → sezon → drużyna oraz liczba meczów (5–50)
 - **Skróty** do popularnych lig: Premier League, La Liga, Bundesliga, Serie A, Ligue 1,
   Ekstraklasa, Liga Mistrzów. Ostatni wybór zapamiętuje przeglądarka, przycisk „Wyczyść” go kasuje
-- **Lista meczów** z logami drużyn i rozgrywek, kolejką lub fazą turnieju, wynikiem
-  (razem z karnymi) i plakietką W/D/L
+- **Lista zakończonych meczów** z logami drużyn i rozgrywek, kolejką lub fazą turnieju,
+  wynikiem (razem z karnymi) i plakietką W/D/L
 - **Szczegóły meczu** po kliknięciu:
   - gole i kartki z minutami, asystami, karnymi i samobójami
   - statystyki z paskami porównania: posiadanie piłki, strzały, xG, rzuty rożne,
@@ -108,9 +108,13 @@ Przy dobowym limicie zapytań to konieczność. Czas ważności zależy od rodza
 | Dane | Ważność |
 |---|---|
 | kraje, ligi | 30 dni |
-| drużyny | 7 dni |
-| mecze, tabela | 1 godzina |
-| zdarzenia i statystyki meczu | 30 dni |
+| drużyny | 7 dni, w zakończonym sezonie na zawsze |
+| mecze, tabela | 1 godzina, w zakończonym sezonie na zawsze |
+| zdarzenia i statystyki meczu | na zawsze |
+ 
+Zakończony mecz już się nie zmieni, więc każdy pobierany jest z API tylko raz.
+Sezon uznawany jest za zakończony od 1 lipca następnego roku. Dane pobrane jeszcze
+w trakcie sezonu zostaną po jego końcu jednorazowo pobrane od nowa, już w komplecie.
  
 Kasowanie: `rm cache.db`.
  
@@ -145,4 +149,4 @@ Kasowanie: `rm cache.db`.
 ## Źródła danych
  
 [football-data.org](https://www.football-data.org/) · [API-Football](https://www.api-football.com/)
- 
+
