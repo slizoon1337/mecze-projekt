@@ -9,6 +9,7 @@ import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
+from datetime import datetime
  
 BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / ".env")
@@ -26,7 +27,9 @@ DB = BASE_DIR / "cache.db"
 TTL_STATIC = 30 * 24 * 3600      # kraje, ligi
 TTL_TEAMS = 7 * 24 * 3600        # sklady lig
 TTL_MATCHES = 3600               # wyniki
-TTL_EVENTS = 30 * 24 * 3600      # zdarzenia zakonczonego meczu sie nie zmieniaja
+TTL_EVENTS = float("inf")        # zdarzenia zakonczonego meczu sie nie zmieniaja
+
+FINISHED = {"FT", "AET", "PEN"}
  
 app = FastAPI(title="Ostatnie mecze v3 - API-Football")
 _quota = {"limit": None, "remaining": None}
@@ -51,7 +54,14 @@ def cache_put(key, value):
             "INSERT OR REPLACE INTO cache (k, v, ts) VALUES (?, ?, ?)",
             (key, json.dumps(value), time.time()),
         )
- 
+
+def season_ttl(season, ttl_running):
+    end = datetime(season + 1, 7, 1).timestamp()
+    now = time.time()
+    if now < end:
+        return ttl_running
+    return now - end
+
 # ---------------- API-Football ----------------
  
 def api_get(path, ttl, **params):
@@ -194,7 +204,7 @@ def leagues(country: str):
  
 @app.get("/api/teams")
 def teams(league: int, season: int):
-    data = api_get("/teams", TTL_TEAMS, league=league, season=season) or []
+    data = api_get("/teams", season_ttl(season, TTL_TEAMS), league=league, season=season) or []
     out = [
         {
             "id": t["team"]["id"],
@@ -216,11 +226,11 @@ def matches(
     if league:
         params["league"] = league
  
-    data = api_get("/fixtures", TTL_MATCHES, **params) or []
+    data = api_get("/fixtures", season_ttl(season, TTL_MATCHES), **params) or []
  
     rows = []
     for f in sorted(data, key=lambda f: f["fixture"]["date"], reverse=True):
-        if f["goals"].get("home") is None or f["goals"].get("away") is None:
+        if f["fixture"]["status"]["short"] not in FINISHED:
             continue
         rows.append(build_row(f, team))
         if len(rows) == limit:
@@ -330,7 +340,7 @@ def clean_desc(desc):
 
 @app.get("/api/standings")
 def standings(league: int, season: int):
-    data = api_get("/standings", TTL_MATCHES, league=league, season=season) or []
+    data = api_get("/standings", season_ttl(season, TTL_MATCHES), league=league, season=season) or []
     if not data:
         return []
  
